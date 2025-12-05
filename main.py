@@ -1,22 +1,46 @@
+# Import required libraries 
 import numpy as np
-from poliastro import constants
-from astropy.coordinates import get_body_barycentric_posvel
-from astropy.time import Time
-from astropy.constants import G  # Newton's gravitational constant
-from spiceypy import sxform, mxvg
-import matplotlib.pyplot as plt
-import pygame as pg
-# Get positions and velocities for the Sun.# Get the time at 5pm on 27th Nov 2019.
+from poliastro import constants  # Planetary constants 
+from astropy.coordinates import get_body_barycentric_posvel  # Planetary positions/velocities
+from astropy.time import Time  # Time handling for astronomical calculations
+from astropy.constants import G  # Gravitational constant G
+from spiceypy import sxform, mxvg  # Coordinate transformations 
+import matplotlib.pyplot as plt  # Plotting 
+import pygame as pg  # Visualization
+import customtkinter  # Graphical user interface
+
+
+# Setup the graphical user interface
+app = customtkinter.CTk()  
+app.title("Gravitational Simulation")
+
+# Time step entry field 
+Time_step = customtkinter.CTkEntry(app, placeholder_text="Time Step (seconds)")
+Time_step.insert(0, "3600")  # Default: 1 hour (3600 seconds)
+Time_step.grid(row=0, column=4, padx=20, pady=20)
+
+# Duration entry field 
+Duration = customtkinter.CTkEntry(app, placeholder_text="Duration (seconds)")
+Duration.insert(0, "86400")  # Default: 1 day (86400 seconds)
+Duration.grid(row=0, column=5, padx=20, pady=20)
+
+# Agrothim selection
+optionmenu = customtkinter.CTkOptionMenu(app, values=["RK4", "Verlet", "Euler_Cromer", "Euler_Richardson"])
+optionmenu.set("RK4")  # Default to Runge-Kutta 4th order (most accurate)
+optionmenu.grid(row=1, column=5, padx=20, pady=20)
+
+# Fetch the data of the planets
+
 t = Time("2019-11-27 17:00:00.0", scale="tdb")
 
 class Particle:
     """
     A Particle class representing a physical object in a simulation.
-    Stores position, velocity, acceleration, mass, and other properties
-    needed for numerical integration methods in physics simulations.
+    Stores position, velocity, acceleration, mass, and the  other required properties
+    for numerical integration.
     """
-    # Gravitational constant (m^3 kg^-1 s^-2)
-    G = G.value  # Using value from astropy.constants
+
+    G = G.value  # Gravitational constant (m^3 kg^-1 s^-2) from astropy.constants
     
     def __init__(
         self,
@@ -41,7 +65,7 @@ class Particle:
         # If no acceleration is provided, initialize with default downward acceleration
         # (simulating gravity, approximately -10 m/s^2 in the y-direction)
         if acceleration is None:
-            acceleration = np.array([0, -10, 0], dtype=float)  # g
+            acceleration = np.array([0, 0, 0], dtype=float)  # g
 
         # Stores the copies of the arrays to prevent shared references
         # Converting to numpy arrays ensures proper vector operations and prevents
@@ -57,7 +81,7 @@ class Particle:
     def calculate_acceleration_from_particles(self, position, particles):
         """
         Calculates the total gravitational acceleration of a particle at a given position
-        due to all other particles in the system.
+        with respect to all the other particles in the system.
         
         Args:
             position: The position vector (numpy array) where acceleration should be calculated
@@ -290,9 +314,14 @@ class Simulation:
             visualize: If True, shows pygame visualization in real-time
         """
         
+        # Initialize simulation time and history tracking
+        # History dictionary stores position coordinates for each particle over time
         time = 0
         history = {particle.name: {'x': [], 'y': [], 'z': []} for particle in particles}
         
+        # ========================================================================
+        # PYGAME VISUALIZATION SETUP
+        # ========================================================================
         # Initialize pygame visualization if requested
         if visualize:
             pg.init()
@@ -311,7 +340,8 @@ class Simulation:
                 'Jupiter': (255, 200, 100),
                 'Saturn': (255, 220, 150),
                 'Uranus': (100, 200, 255),
-                'Neptune': (0, 0, 255)
+                'Neptune': (0, 0, 255),
+                'Pluto': (255, 255, 255)
             }
             
             # Calculate scale and offset for visualization
@@ -319,10 +349,15 @@ class Simulation:
             all_positions = np.array([p.position for p in particles])
             center = np.mean(all_positions, axis=0)
             max_dist = np.max(np.linalg.norm(all_positions - center, axis=1))
-            scale = min(400, 400) / max_dist if max_dist > 0 else 1
+            # Use a reasonable scale - make sure objects are visible
+            scale = min(350, 350) / max_dist if max_dist > 0 else 1e-10
+            print(f"Visualization scale: {scale}, max_dist: {max_dist}, center: {center}")
             
+        # ========================================================================
+        # MAIN SIMULATION LOOP
+        # ========================================================================
         while time < duration:
-            # Handle pygame events
+            # Handle pygame events (window close, ESC key, etc.)
             if visualize:
                 for event in pg.event.get():
                     if event.type == pg.QUIT:
@@ -333,64 +368,96 @@ class Simulation:
                             running = False
                             break
                 if not running:
-                    break
+                    break  # Exit simulation if user closed window
             
+            # Update each particle's position and velocity
             for particle in particles:
-                # Store history before updating
+                # Store current position in history before updating
+                # This allows us to visualize trajectories after simulation
                 history[particle.name]['x'].append(particle.position[0])
                 history[particle.name]['y'].append(particle.position[1])
                 history[particle.name]['z'].append(particle.position[2])
 
+                # Apply numerical integration method based on user selection
+                # Map GUI method names to actual method names
                 if method == "Euler_Cromer":
                     particle.Euler_Cromer(delta_T, particles)
-                elif method == "Runge_Kutta":
+                elif method == "RK4" or method == "Runge_Kutta":
+                    # RK4 = Runge-Kutta 4th order (most accurate)
                     particle.Runge_Kutta(delta_T, particles)
                 elif method == "Euler_Richardson":  
                     particle.Euler_Richardson(delta_T, particles)
-                elif method == "verlet":
+                elif method == "Verlet" or method == "verlet":
+                    # Verlet method (good energy conservation)
                     particle.verlet(delta_T, particles)
             
-            # Update visualization
+            # ====================================================================
+            # UPDATE VISUALIZATION (real-time rendering)
+            # ====================================================================
             if visualize:
-                screen.fill((0, 0, 0))  # Black background
+                screen.fill((0, 0, 0))  # Clear screen with black background
                 
-                # Draw trajectories
+                # Draw particle trajectories (paths they've traveled)
                 for particle in particles:
                     if len(history[particle.name]['x']) > 1:
+                        # Get color for this particle from color mapping
                         color = colors.get(particle.name, (255, 255, 255))
                         points = []
+                        # Convert all historical positions to screen coordinates
                         for i in range(len(history[particle.name]['x'])):
+                            # Convert from world coordinates to screen coordinates
+                            # Center is at (600, 400) - middle of 1200x800 screen
                             x = history[particle.name]['x'][i] - center[0]
                             y = history[particle.name]['y'][i] - center[1]
                             screen_x = int(600 + x * scale)
                             screen_y = int(400 + y * scale)
-                            points.append((screen_x, screen_y))
+                            # Only add points that are visible on screen
+                            if 0 <= screen_x < 1200 and 0 <= screen_y < 800:
+                                points.append((screen_x, screen_y))
+                        # Draw trajectory line if we have at least 2 points
                         if len(points) > 1:
                             pg.draw.lines(screen, color, False, points, 1)
                 
-                # Draw particles
+                # Draw current particle positions as circles
                 for particle in particles:
+                    # Convert current position to screen coordinates
                     x = particle.position[0] - center[0]
                     y = particle.position[1] - center[1]
                     screen_x = int(600 + x * scale)
                     screen_y = int(400 + y * scale)
                     color = colors.get(particle.name, (255, 255, 255))
                     
-                    # Size based on mass (log scale)
-                    size = max(2, min(20, int(np.log10(particle.mass / 1e20) + 5)))
-                    pg.draw.circle(screen, color, (screen_x, screen_y), size)
+                    # Calculate particle size based on mass (logarithmic scale)
+                    # Larger masses appear as larger circles
+                    if particle.mass > 0:
+                        size = max(2, min(20, int(np.log10(particle.mass / 1e20) + 5)))
+                    else:
+                        size = 5
+                    
+                    # Only draw if particle is visible on screen
+                    if 0 <= screen_x < 1200 and 0 <= screen_y < 800:
+                        pg.draw.circle(screen, color, (screen_x, screen_y), size)
+                        # Draw particle name label next to the circle
+                        font_small = pg.font.Font(None, 20)
+                        name_text = font_small.render(particle.name, True, color)
+                        screen.blit(name_text, (screen_x + size + 2, screen_y - 10))
                 
-                # Display time
+                # Display current simulation time in days
                 font = pg.font.Font(None, 36)
                 time_text = font.render(f"Time: {time/86400:.2f} days", True, (255, 255, 255))
                 screen.blit(time_text, (10, 10))
                 
+                # Update display and limit frame rate to 60 FPS
                 pg.display.flip()
-                clock.tick(60)  # Limit to 60 FPS
+                clock.tick(60)  
             
+            # Advance simulation time by one time step
             time += delta_T
         
-        # Keep window open after simulation completes
+        # ========================================================================
+        # POST-SIMULATION VISUALIZATION
+        # ========================================================================
+        # Keep window open after simulation completes to show final state
         if visualize:
             # Show final state and wait for user to close window
             screen.fill((0, 0, 0))  # Black background
@@ -444,39 +511,75 @@ class Simulation:
         return history 
  
 def get_data(name, time_obj=None):
+    """
+    Retrieves position and velocity data for a celestial body from JPL ephemeris.
+    
+    Args:
+        name: Name of the celestial body (e.g., "sun", "earth", "mars")
+        time_obj: Time object for ephemeris lookup. If None, uses default time 't'.
+    
+    Returns:
+        position: 3D position vector in meters [x, y, z] in ecliptic coordinates
+        velocity: 3D velocity vector in m/s [vx, vy, vz] in ecliptic coordinates
+    """
+    # Use default time if none provided
     if time_obj is None:
         time_obj = t
+    
+    # Get barycentric position and velocity from JPL ephemeris
+    # Barycentric = relative to solar system barycenter (center of mass)
     pos, vel = get_body_barycentric_posvel(name, time_obj, ephemeris="jpl")    
 
-    # Make a "state vector" of positions and velocities (in metres and metres/second, respectively).
+    # Convert astropy Quantity objects to meters and m/s, create state vector
+    # State vector format: [x, y, z, vx, vy, vz]
     statevec = [ 
-        pos.xyz[0].to("m").value,
-        pos.xyz[1].to("m").value,
-        pos.xyz[2].to("m").value,
-        vel.xyz[0].to("m/s").value,
-        vel.xyz[1].to("m/s").value,
-        vel.xyz[2].to("m/s").value,]
+        pos.xyz[0].to("m").value,  # X position in meters
+        pos.xyz[1].to("m").value,  # Y position in meters
+        pos.xyz[2].to("m").value,  # Z position in meters
+        vel.xyz[0].to("m/s").value,  # X velocity in m/s
+        vel.xyz[1].to("m/s").value,  # Y velocity in m/s
+        vel.xyz[2].to("m/s").value,  # Z velocity in m/s
+    ]
 
-    # Get transformation matrix to the ecliptic (use time in Julian Days).
-    trans = sxform("J2000", "ECLIPJ2000", t.jd)
+    # Transform from J2000 equatorial coordinates to Ecliptic coordinates
+    # J2000 = equatorial coordinate system (Earth's equator as reference)
+    # Ecliptic = coordinate system based on Earth's orbital plane
+    # Transformation matrix converts between these coordinate systems
+    trans = sxform("J2000", "ECLIPJ2000", t.jd)  # t.jd = Julian Day number
 
-    # Transform state vector to ecliptic.
+    # Apply transformation matrix to state vector
     statevececl = mxvg(trans, statevec)
-    # Get positions and velocities.
+    
+    # Extract transformed positions and velocities
     position = [statevececl[0], statevececl[1], statevececl[2]]
     velocity = [statevececl[3], statevececl[4], statevececl[5]]
     return position, velocity
 
+# ============================================================================
+# PLANETARY MASS CALCULATIONS
+# ============================================================================
+# Calculate planetary masses from GM (gravitational parameter) values
+# GM = G * M, so M = GM / G
+# Using poliastro constants which provide GM values for each planet
 msun = (constants.GM_sun / G).value
 mmercury = (constants.GM_mercury / G).value
-mvenus= (constants.GM_venus / G).value
+mvenus = (constants.GM_venus / G).value
 mearth = (constants.GM_earth / G).value 
-mmars= (constants.GM_mars / G).value
-mjupiter= (constants.GM_jupiter / G).value
-msaturn= (constants.GM_saturn / G).value
-muranus= (constants.GM_uranus / G).value
-mneptune= (constants.GM_neptune / G).value
+mmars = (constants.GM_mars / G).value
+mjupiter = (constants.GM_jupiter / G).value
+msaturn = (constants.GM_saturn / G).value
+muranus = (constants.GM_uranus / G).value
+mneptune = (constants.GM_neptune / G).value
+# Pluto mass calculation (commented out - can be enabled if needed)
+#mpluto = (constants.GM_pluto / G).value 
+# Alternative: use custom mass (e.g., for black hole simulation)
+#mpluto = msun * 3000
 
+# ============================================================================
+# PLANETARY POSITION AND VELOCITY DATA RETRIEVAL
+# ============================================================================
+# Get initial positions and velocities for all planets from JPL ephemeris
+# These represent the actual positions of planets at the reference time
 position_sun, velocity_sun = get_data("sun", t)
 position_mercury, velocity_mercury = get_data("mercury", t)
 position_venus, velocity_venus = get_data("venus", t)
@@ -485,17 +588,25 @@ position_mars, velocity_mars = get_data("mars", t)
 position_jupiter, velocity_jupiter = get_data("jupiter", t)
 position_saturn, velocity_saturn = get_data("saturn", t)
 position_uranus, velocity_uranus = get_data("uranus", t)
-position_neptune, velocity_neptune= get_data("neptune", t)
+position_neptune, velocity_neptune = get_data("neptune", t)
+# Pluto data (commented out - can be enabled if needed)
+#position_pluto, velocity_pluto = get_data("pluto", t)
 
-Sun =Particle(
+# ============================================================================
+# PARTICLE OBJECT CREATION
+# ============================================================================
+# Create Particle objects for each celestial body with their initial conditions
+# Each particle represents a planet/moon/star in the simulation
+
+Sun = Particle(
         position=position_sun,
         velocity=velocity_sun,
-        acceleration=None,
+        acceleration=None,  # Will be calculated from gravitational forces
         name="sun",
         mass=msun
 )
           
-Mercury =Particle(
+Mercury = Particle(
         position=position_mercury,
         velocity=velocity_mercury,
         acceleration=None,
@@ -503,105 +614,112 @@ Mercury =Particle(
         mass=mmercury
 )
 
-Venus =Particle(
+Venus = Particle(
         position=position_venus,
         velocity=velocity_venus,
         acceleration=None,
         name="Venus",
         mass=mvenus
 )
-Earth =Particle(
+
+Earth = Particle(
         position=position_earth,
         velocity=velocity_earth,
         acceleration=None,
         name="Earth",
         mass=mearth
 )
-Mars =Particle(
+
+Mars = Particle(
         position=position_mars,
         velocity=velocity_mars,
         acceleration=None,
         name="Mars",
         mass=mmars
 )
-Jupiter =Particle(
+
+Jupiter = Particle(
         position=position_jupiter,
         velocity=velocity_jupiter,
         acceleration=None,
         name="Jupiter",
         mass=mjupiter
 )
-Saturn =Particle(
+
+Saturn = Particle(
         position=position_saturn,
         velocity=velocity_saturn,
         acceleration=None,
         name="Saturn",
         mass=msaturn
 )
-Uranus =Particle(
+
+Uranus = Particle(
         position=position_uranus,
         velocity=velocity_uranus,
         acceleration=None,
         name="Uranus",
         mass=muranus
 )
-Neptune =Particle(
+
+Neptune = Particle(
         position=position_neptune,
         velocity=velocity_neptune,
         acceleration=None,
         name="Neptune",
-        mass=mneptune)
-                        
-def visualize_with_pygame(history, particles):
+        mass=mneptune
+)
+
+# Pluto particle (commented out - can be enabled for special simulations)
+# Useful for testing with custom masses (e.g., black hole simulation)
+#Pluto_blackHole = Particle(
+#        position=position_pluto,
+#        velocity=velocity_pluto,
+#        acceleration=None,
+#        name="Pluto",
+#        mass=mpluto
+#)
+def draw(history, particles):
     """
     Visualize simulation results using pygame from stored history.
+    This function replays the simulation by animating through stored position data.
     
     Args:
         history: Dictionary containing position history for each particle
-        particles: List of Particle objects
+                 Format: {particle_name: {'x': [list], 'y': [list], 'z': [list]}}
+        particles: List of Particle objects to visualize
     """
+    # Initialize pygame
     pg.init()
     screen = pg.display.set_mode((1200, 800))
     pg.display.set_caption("N-Body Solar System Simulation - History")
     clock = pg.time.Clock()
     
-    # Color mapping for planets
+    # Color mapping for planets (RGB tuples)
+    # Each planet has a distinct color for easy identification
     colors = {
-        'sun': (255, 255, 0),
-        'Mercury': (169, 169, 169),
-        'Venus': (255, 165, 0),
-        'Earth': (0, 100, 200),
-        'Mars': (255, 0, 0),
-        'Jupiter': (255, 200, 100),
-        'Saturn': (255, 220, 150),
-        'Uranus': (100, 200, 255),
-        'Neptune': (0, 0, 255)
+        'sun': (255, 255, 0),        # Yellow
+        'Mercury': (169, 169, 169),   # Gray
+        'Venus': (255, 165, 0),       # Orange
+        'Earth': (0, 100, 200),       # Blue
+        'Mars': (255, 0, 0),          # Red
+        'Jupiter': (255, 200, 100),  # Light orange/yellow
+        'Saturn': (255, 220, 150),   # Pale yellow
+        'Uranus': (100, 200, 255),   # Light blue
+        'Neptune': (0, 0, 255),       # Blue
+        'pluto-blackHole': (255, 255, 255)  # White
     }
     
-    # Calculate scale and offset
-    all_x = []
-    all_y = []
-    for name, data in history.items():
-        all_x.extend(data['x'])
-        all_y.extend(data['y'])
-    
-    if all_x and all_y:
-        center_x = (max(all_x) + min(all_x)) / 2
-        center_y = (max(all_y) + min(all_y)) / 2
-        max_dist = max(
-            max(all_x) - min(all_x),
-            max(all_y) - min(all_y)
-        ) / 2
-        scale = min(400, 400) / max_dist if max_dist > 0 else 1
-    else:
-        center_x, center_y = 0, 0
-        scale = 1
-    
+    # Animation control variables
     running = True
-    frame = 0
+    frame = 0  # Current frame in animation
     max_frames = max([len(data['x']) for data in history.values()]) if history else 0
     
+    # ========================================================================
+    # ANIMATION LOOP
+    # ========================================================================
     while running:
+        # Handle user input (close window, ESC key)
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 running = False
@@ -609,60 +727,125 @@ def visualize_with_pygame(history, particles):
                 if event.key == pg.K_ESCAPE:
                     running = False
         
-        screen.fill((0, 0, 0))
+        screen.fill((0, 0, 0))  # Clear screen with black background
         
-        # Draw trajectories up to current frame
+        # Calculate scale and offset dynamically each frame
+        # This ensures the view zooms/centers appropriately as animation progresses
+        all_x = []
+        all_y = []
+        # Collect all positions up to current frame
+        for name, data in history.items():
+            if len(data['x']) > 0:
+                all_x.extend(data['x'][:frame+1])
+                all_y.extend(data['y'][:frame+1])
+        
+        # Calculate center and scale based on visible data
+        if all_x and all_y:
+            center_x = (max(all_x) + min(all_x)) / 2
+            center_y = (max(all_y) + min(all_y)) / 2
+            max_dist = max(
+                max(all_x) - min(all_x),
+                max(all_y) - min(all_y)
+            ) / 2
+            scale = min(400, 400) / max_dist if max_dist > 0 else 1
+        else:
+            center_x, center_y = 0, 0
+            scale = 1
+        
+        # Draw trajectories up to current frame (shows path traveled so far)
         for particle in particles:
             name = particle.name
             if name in history and len(history[name]['x']) > 0:
                 color = colors.get(name, (255, 255, 255))
                 points = []
+                # Convert historical positions to screen coordinates
                 for i in range(min(frame, len(history[name]['x']))):
                     x = history[name]['x'][i] - center_x
                     y = history[name]['y'][i] - center_y
                     screen_x = int(600 + x * scale)
                     screen_y = int(400 + y * scale)
                     points.append((screen_x, screen_y))
+                # Draw trajectory line
                 if len(points) > 1:
                     pg.draw.lines(screen, color, False, points, 1)
                 
-                # Draw current position
+                # Draw current position as a circle
                 if frame < len(history[name]['x']):
                     x = history[name]['x'][frame] - center_x
                     y = history[name]['y'][frame] - center_y
                     screen_x = int(600 + x * scale)
                     screen_y = int(400 + y * scale)
+                    # Size based on mass (logarithmic scale)
                     size = max(2, min(20, int(np.log10(particle.mass / 1e20) + 5)))
                     pg.draw.circle(screen, color, (screen_x, screen_y), size)
         
-        # Display frame info
+        # Display current frame number
         font = pg.font.Font(None, 36)
         frame_text = font.render(f"Frame: {frame}/{max_frames}", True, (255, 255, 255))
         screen.blit(frame_text, (10, 10))
         
+        # Update display
         pg.display.flip()
-        clock.tick(30)  # 30 FPS
+        clock.tick(2000)  # 2000 Frames per second (very fast animation)
         
+        # Advance to next frame
         frame += 1
         if frame >= max_frames:
-            frame = 0  # Loop animation
+            frame = 0  # Loop animation when reaching the end
     
     pg.quit()
 
-# Run simulation if this file is executed directly
+# ============================================================================
+# MAIN EXECUTION BLOCK
+# ============================================================================
+# Run simulation if this file is executed directly (not imported as module)
 if __name__ == "__main__":
-    # Create list of all particles
+    # Create list of all particles to simulate
+    # Add or remove particles from this list to change what's simulated
     particles = [Sun, Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune]
     
     # Create simulation instance
     sim = Simulation()
     
-    # Run simulation with a small time step (in seconds)
-    # Duration: 1 day = 86400 seconds
-    # Time step: 1 hour = 3600 seconds
-    print("Running simulation...")
-    print("Press ESC or close window to exit visualization")
+    def run_simulation():
+        """
+        Callback function for the "Run Simulation" button.
+        Retrieves user input from GUI and runs the simulation.
+        """
+        try:
+            # Get values from GUI entries and convert to proper types
+            # These are read when button is clicked, not at module load time
+            my_time_step = float(Time_step.get())  # Convert string to float
+            my_duration = float(Duration.get())    # Convert string to float
+            my_method = optionmenu.get()           # Get selected method name
+            
+            print(f"Starting simulation: delta_T={my_time_step}, duration={my_duration}, method={my_method}")
+            
+            # Run simulation with user-specified parameters
+            # visualize=True enables real-time pygame visualization
+            history = sim.simulate(
+                particles, 
+                delta_T=my_time_step,      # Time step in seconds
+                method=my_method,          # Integration method
+                duration=my_duration,      # Total duration in seconds
+                visualize=True             # Show pygame window
+            )
+            print("Simulation completed!")
+        except ValueError as e:
+            # Handle invalid input (non-numeric values)
+            print(f"Error: Invalid input values. Please enter numbers. {e}")
+        except Exception as e:
+            # Handle any other errors during simulation
+            print(f"Error during simulation: {e}")
+            import traceback
+            traceback.print_exc()
     
-    # Run with real-time pygame visualization
-    history = sim.simulate(particles, delta_T=3600, method="Runge_Kutta", duration=31536000, visualize=True)
+    # Create "Run Simulation" button and connect it to callback function
+    Run = customtkinter.CTkButton(app, text="Run Simulation", command=run_simulation)
+    Run.grid(row=0, column=6, padx=20, pady=20)
     
+    # Start GUI event loop (blocks until window is closed)
+    app.mainloop()
+    
+    #testing the simulation via angular momentum and convesrvation of energy 
+
