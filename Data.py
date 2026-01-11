@@ -11,7 +11,6 @@ t = Time("2019-11-27 17:00:00.0", scale="tdb")
 def get_data(name, time_obj=None):
     """
     Retrieves position and velocity data for a celestial body from JPL ephemeris.
-    
     """
     # Use default time if none provided
     if time_obj is None:
@@ -31,7 +30,6 @@ def get_data(name, time_obj=None):
     ]
 
     # Transform from J2000 equatorial coordinates to Ecliptic coordinates
-   
     trans = sxform("J2000", "ECLIPJ2000", t.jd)  # t.jd = Julian Day number
 
     # Apply transformation matrix to state vector
