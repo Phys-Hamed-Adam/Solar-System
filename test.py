@@ -14,7 +14,6 @@ class Tests:
     def conservation_of_linear_momentum(particles, history):
         """
         Tests conservation of total linear momentum (P) for the system.
-        
         """
         # Calculate initial linear momentum (first time step)
         P_initial = np.array([0.0, 0.0, 0.0])
@@ -52,13 +51,13 @@ class Tests:
                 p_mag = np.linalg.norm(particle.mass * v)
                 max_particle_momentum = max(max_particle_momentum, p_mag)
         
-        # Use max particle momentum as reference scale, or absolute difference 
+        # Use max particle momentum as reference scale
         if max_particle_momentum > 1e-10:
             error_percent = (difference / max_particle_momentum * 100)
-  
-       
+        else:
+            error_percent = 0.0
         
-        if  difference <= tolerance:
+        if difference <= tolerance:
             print(f"Linear momentum conserved. Difference: {difference:.6e} kg*m/s")
             return True, error_percent
         else:
@@ -70,7 +69,6 @@ class Tests:
     def conservation_of_angular_momentum(particles, history):
         """
         Tests conservation of angular momentum for the system. L = r × (m*v)
-        
         """    
         # Calculate initial angular momentum (first time step)
         L_initial = np.array([0.0, 0.0, 0.0])
@@ -109,9 +107,7 @@ class Tests:
     def conservation_of_energy(particles, history):
         """
         Tests conservation of total energy for the system.
-        
-        Returns:
-            tuple (bool, float): True if energy is conserved, and the percentage error
+        Returns tuple (bool, float): True if energy is conserved, and the percentage error
         """
         if not history or len(history[list(history.keys())[0]]['x']) < 2:
             print("Not enough history data for energy test")
@@ -152,8 +148,7 @@ class Tests:
                             E_total -= G * p1.mass * p2.mass / r
 
             energy_history[t] = E_total
-
-      
+        
         E_initial = energy_history[0]
         E_final = energy_history[-1]
 
@@ -172,21 +167,12 @@ class Tests:
 
         return is_conserved, error_percent, energy_history
     
-    # For plotting Jupiter's energy over time
     @staticmethod
     def calculate_planet_energy_history(particle, particles, history):
         """
-        Calculates a planet's kinetic energy, potential energy, and total energy over time.
-        General method that works for any particle.
-        
-        Args:
-            particle: Particle object for the planet
-            particles: List of all Particle objects
-            history: Dictionary containing position and velocity history
-            
-        Returns:
-            tuple: (kinetic_energy, potential_energy, total_energy) arrays
-                   All arrays are in the same units as the simulation
+        Calculates a planet's kinetic, potential, and total energy over time.
+        Works for any particle.
+        Returns tuple: (kinetic_energy, potential_energy, total_energy) arrays
         """
         if not history or len(history[list(history.keys())[0]]['x']) < 2:
             return None, None, None
@@ -241,8 +227,7 @@ class Tests:
     @staticmethod
     def calculate_jupiter_energy_history(particles, history):
         """
-        Calculates Jupiter's kinetic energy, potential energy, and total energy over time.
-         
+        Calculates Jupiter's kinetic, potential, and total energy over time.
         """
         # Find Jupiter particle
         jupiter_particle = next((p for p in particles if p.name == "Jupiter"), None)
@@ -255,8 +240,7 @@ class Tests:
     @staticmethod
     def escape_velocity(particles, history):
         """
-        Calculates the escape velocity from each planet's surface and compares with known values.
-      
+        Calculates escape velocity from each planet's surface and compares with known values.
         """
         G = Particle.G
         
@@ -335,9 +319,7 @@ class Tests:
     @staticmethod
     def period_error(angles, delta_T, particles):
         """
-        Calculates orbital period and percent error for every planet 
-        that has angle history stored in `angles`.
-
+        Calculates orbital period and percent error for planets with angle history.
         """
 
         from math import pi
@@ -358,8 +340,7 @@ class Tests:
 
         for particle in particles:
             name = particle.name
-
-        
+            
             if name not in angles:
                 continue
 
@@ -368,7 +349,7 @@ class Tests:
             accumulated_angle = 0.0
             orbit_completion_step = None
 
-            #  Detect orbit 
+            # Detect orbit completion
             for i in range(1, len(theta)):
                 angle_change = theta[i] - theta[i - 1]
 
@@ -382,8 +363,7 @@ class Tests:
 
                 # Check if 2π reached
                 if accumulated_angle >= 2 * pi:
-
-                    # prevent false early detection
+                    # Prevent false early detection
                     if i < len(theta) * 0.05:
                         continue
 
@@ -394,12 +374,12 @@ class Tests:
                     orbit_completion_step = i - fractional_step
                     break
 
-            # Could not detect a full orbit → skip
+            # Could not detect a full orbit, skip
             if orbit_completion_step is None:
                 results[name] = (None, None)
                 continue
 
-            # --- Calculate period and error ---
+            # Calculate period and error
             calculated_period = orbit_completion_step * delta_T
             target_period_s = known_periods.get(name)
 
@@ -421,7 +401,6 @@ class Tests:
     def save_test_results(particles, history, delta_T, duration, method, filename=None):
         """
         Saves test results to a JSON file.
-        
         """
         # Get desktop path
         desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
