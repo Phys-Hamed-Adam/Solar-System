@@ -1,11 +1,11 @@
+# Import required libraries 
 import numpy as np
 from astropy.constants import G  # Gravitational constant G
 
 class Particle:
     """
-    A Particle class representing a physical object in a simulation.
-    Stores position, velocity, acceleration, mass, and the  other required properties
-    for numerical integration.
+    Represents a physical object in the simulation.
+    Stores position, velocity, acceleration, mass, and other properties for numerical integration.
     """
 
     G = G.value  # Gravitational constant (m^3 kg^-1 s^-2) from astropy.constants
@@ -19,8 +19,8 @@ class Particle:
         mass=None):
         
         """
-        Initialises a Particle object with position, velocity, acceleration,
-        name, and mass. Arrays are stored as copies and converted to float.
+        Initialize a Particle with position, velocity, acceleration, name, and mass.
+        Arrays are stored as copies and converted to float.
         """
         
         self.position = np.array(position, dtype=float) if position is not None else np.zeros(3)
@@ -33,9 +33,7 @@ class Particle:
     
     def calculate_acceleration_from_particles(self, position, particles):
         """
-        Calculates the total gravitational acceleration at a given position due to all other particles.
-        
-      
+        Calculates total gravitational acceleration at a given position due to all other particles.
         """
         total_acceleration = np.zeros(3)
 
